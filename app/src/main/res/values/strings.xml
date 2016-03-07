@@ -1,0 +1,37 @@
+<resources>
+    <string name="app_name">EyeBell</string>
+
+    <!-- Strings related to login and register -->
+    <string name="prompt_email">Email</string>
+    <string name="prompt_name">Name</string>
+    <string name="prompt_phone">Phone Number</string>
+    <string name="prompt_password">Password</string>
+    <string name="prompt_serial">EyeBell Serial</string>
+    <string name="action_sign_in">Sign in</string>
+    <string name="action_register">Register</string>
+    <string name="action_sign_in_short">Sign in</string>
+    <string name="error_invalid_email">This email address is invalid</string>
+    <string name="error_invalid_password">This password is too short</string>
+    <string name="error_incorrect_password">This password is incorrect</string>
+    <string name="error_field_required">This field is required</string>
+    <string name="stay_logged">Stay logged in</string>
+    <string name="profile_name">Welcome, </string>
+    <string name="profile_email">Email: </string>
+    <string name="drawer_open">Open navigation drawer</string>
+    <string name="drawer_close">Close navigation drawer</string>
+    <string name="permission_rationale">"Contacts permissions are needed for providing email
+        completions."
+    </string>
+    <string name="title_activity_register">Register New Account</string>
+    <!-- Credential Strings -->
+    <string name="app_id">01F98CDC-C378-F901-FFDB-0605FDFA9100</string>
+    <string name="android_id">B940BD4F-F27E-5E9B-FFCF-DC8BB5402D00</string>
+    <string name="title_activity_main">EyeBell</string>
+    <string name="title_activity_login">EyeBell Login</string>
+    <string-array
+        name="menu_item_names">
+        <item>Home</item>
+        <item>Visitors</item>
+        <item>Logout</item>
+    </string-array>
+</resources>
