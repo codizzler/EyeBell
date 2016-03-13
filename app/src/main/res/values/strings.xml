@@ -23,6 +23,8 @@
         completions."
     </string>
     <string name="title_activity_register">Register New Account</string>
+    <string name="visitor_name_prompt">Name: </string>
+    <string name="visitor_date_prompt">Visit Date: </string>
     <!-- Credential Strings -->
     <string name="app_id">01F98CDC-C378-F901-FFDB-0605FDFA9100</string>
     <string name="android_id">B940BD4F-F27E-5E9B-FFCF-DC8BB5402D00</string>

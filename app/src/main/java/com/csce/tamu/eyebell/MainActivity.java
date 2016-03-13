@@ -1,9 +1,12 @@
 package com.csce.tamu.eyebell;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.app.FragmentManager;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.app.Fragment;
@@ -23,18 +26,38 @@ import android.widget.SimpleAdapter;
 import android.widget.TextView;
 
 import com.backendless.Backendless;
+import com.backendless.BackendlessCollection;
 import com.backendless.BackendlessUser;
+import com.backendless.async.callback.AsyncCallback;
 import com.backendless.exceptions.BackendlessException;
+import com.backendless.exceptions.BackendlessFault;
+import com.backendless.messaging.MessageStatus;
+import com.backendless.messaging.PublishOptions;
+import com.backendless.persistence.BackendlessDataQuery;
+import com.backendless.persistence.QueryOptions;
 import com.backendless.persistence.local.UserIdStorageFactory;
 import com.backendless.persistence.local.UserTokenStorageFactory;
+import com.csce.tamu.eyebell.models.Visitors;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends AppCompatActivity {
     static private boolean validLogin;
+    private ListView mVisitorList;
     private ActionBarDrawerToggle mDrawerToggle;
+    private BackendlessCollection<Visitors> VisitorLog;
+    private List<Bitmap> VisitorImages;
     private CharSequence mDrawerTitle;
     private BackendlessUser currentUser;
     private String[] mMenuTitles;
@@ -43,13 +66,56 @@ public class MainActivity extends AppCompatActivity {
     private ListView mDrawerList;
     private UserLogOutTask mOutTask = null;
     private UserGetTask mUseTask = null;
+    private VisitorUpdateTask mLogTask = null;
     private View headerView;
+
+    private void initializeDrawerMenuAdapter() {
+        int[] mIcons = new int[]{
+                R.drawable.ic_action_home,
+                R.drawable.ic_action_visitors,
+                R.drawable.ic_action_logout,
+        };
+        ArrayList<HashMap<String,String>> mList = new ArrayList<>();
+        for(int i=0;i<3;i++){
+            HashMap<String, String> hm = new HashMap<>();
+            hm.put("text1", mMenuTitles[i]);
+            hm.put("icon1", Integer.toString(mIcons[i]));
+            mList.add(hm);
+        }
+        String from[] = {"text1", "icon1"};
+        int to[] = {R.id.text1, R.id.icon1};
+        // Set the adapter for the list view
+        mDrawerList.setAdapter(new SimpleAdapter(this, mList,
+                R.layout.drawer_list_item, from, to));
+        // Set the list's click listener
+        mDrawerList.setOnItemClickListener(new DrawerItemClickListener());
+    }
+
+    private void initializeVisitorLogAdapter() {
+        String namePrompt = getString(R.string.visitor_name_prompt) + " ";
+        String visitPrompt = getString(R.string.visitor_date_prompt) + " ";
+        ArrayList<HashMap<String,String>> mList = new ArrayList<>();
+        DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm");
+        for(Visitors visitor : VisitorLog.getData()){
+            String formatDate = df.format(visitor.getVisitDate());
+            HashMap<String, String> hm = new HashMap<>();
+            Log.i("VisitorBuilder", "Adding visitor: " + visitor.getVisitorName()
+                    + " " + visitor.getVisitDate());
+            hm.put("visit_text1", namePrompt + visitor.getVisitorName());
+            hm.put("visit_text2", visitPrompt + formatDate);
+            mList.add(hm);
+        }
+        String from[] = {"visit_text1", "visit_text2"};
+        int to[] = {R.id.visit_text1, R.id.visit_text2};
+        mVisitorList.setAdapter(new SimpleAdapter(this, mList,
+                R.layout.visitor_list_item, from, to));
+        mVisitorList.setOnItemClickListener(new VisitorItemClickListener());
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         LayoutInflater inflater = getLayoutInflater();
 
         headerView = inflater.inflate(R.layout.header_list, null, false);
@@ -62,30 +128,11 @@ public class MainActivity extends AppCompatActivity {
         mMenuTitles = getResources().getStringArray(R.array.menu_item_names);
         mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
         mDrawerList = (ListView) findViewById(R.id.left_drawer);
-        int[] mIcons = new int[]{
-                R.drawable.ic_action_home,
-                R.drawable.ic_action_visitors,
-                R.drawable.ic_action_logout,
-        };
-        ArrayList<HashMap<String,String>> mList = new ArrayList<HashMap<String,String>>();
-        for(int i=0;i<3;i++){
-            HashMap<String, String> hm = new HashMap<String,String>();
-            hm.put("text1", mMenuTitles[i]);
-            hm.put("icon1", Integer.toString(mIcons[i]));
-            mList.add(hm);
-        }
-        String from[] = {"text1", "icon1"};
-        int to[] = {R.id.text1, R.id.icon1};
         mDrawerList.addHeaderView(headerView);
-        // Set the adapter for the list view
-        mDrawerList.setAdapter(new SimpleAdapter(this, mList,
-                R.layout.drawer_list_item, from, to));
-        // Set the list's click listener
-        mDrawerList.setOnItemClickListener(new DrawerItemClickListener());
+        initializeDrawerMenuAdapter();
 
         mDrawerToggle = new ActionBarDrawerToggle(this, mDrawerLayout,
                 R.string.drawer_open, R.string.drawer_close) {
-
             /** Called when a drawer has settled in a completely closed state. */
             public void onDrawerClosed(View view) {
                 super.onDrawerClosed(view);
@@ -101,6 +148,16 @@ public class MainActivity extends AppCompatActivity {
             }
         };
 
+        Timer timer = new Timer();
+
+        timer.scheduleAtFixedRate(new TimerTask() {
+
+            synchronized public void run() {
+                loadVisitorLogs();
+            }
+
+        }, TimeUnit.SECONDS.toMillis(30), TimeUnit.SECONDS.toMillis(30));
+
         mDrawerLayout.setDrawerListener(mDrawerToggle);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeButtonEnabled(true);
@@ -113,9 +170,42 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private class VisitorItemClickListener implements ListView.OnItemClickListener {
+        @Override
+        public void onItemClick(AdapterView parent, View view, int position, long id) {
+            selectVisitor(position);
+        }
+    }
+
+    /** Swaps fragments in the main content view */
+    public void selectVisitor(final int position) {
+        String choice_name = VisitorLog.getData().get(position).getVisitorName();
+        Log.i("VisitorSelection", "User selected visitor: " + choice_name);
+        final Dialog dialog= new Dialog(this);
+        LayoutInflater inflater  = getLayoutInflater();
+        View v = inflater.inflate(R.layout.visitor_view, null);
+        DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm");
+        String formatDate = df.format(VisitorLog.getData().get(position).getVisitDate());
+        ((TextView) v.findViewById(R.id.visitor_name)).append(" " + VisitorLog.getData().get(position).getVisitorName());
+        ((TextView) v.findViewById(R.id.visitor_date)).append(" " + formatDate);
+        ((ImageView) v.findViewById(R.id.visitor_image)).setImageBitmap(VisitorImages.get(position));
+        dialog.setContentView(v);
+        dialog.show();
+        (v.findViewById(R.id.dialog_btn)).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View arg0) {
+                dialog.dismiss();
+                mVisitorList.setItemChecked(position, false);
+            }
+        });
+    }
+
     /** Swaps fragments in the main content view */
     public void selectItem(int position) {
-        String choice_title = getResources().getStringArray(R.array.menu_item_names)[position];
+        String choice_title = "Header";
+        if (position > 0) {
+            choice_title = getResources().getStringArray(R.array.menu_item_names)[position - 1];
+        }
         Log.i("MenuSelection", "User selected: " + choice_title);
         switch (position) {
             case 0:
@@ -221,6 +311,84 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void loadVisitorLogs() {
+        if (mLogTask != null) {
+            return;
+        }
+        mLogTask = new VisitorUpdateTask(this);
+        mLogTask.execute((Void) null);
+    }
+
+    public class VisitorUpdateTask extends AsyncTask<Void, Void, Boolean> {
+        private Activity mActivity;
+        VisitorUpdateTask(Activity act) {
+            mActivity = act;
+        }
+
+        @Override
+        protected Boolean doInBackground(Void... params) {
+            try {
+                if (currentUser != null) {
+                    String whereClause = "SerialNum = '" + currentUser.getProperty("serial") + "'";
+                    BackendlessDataQuery dataQuery = new BackendlessDataQuery();
+                    dataQuery.setWhereClause(whereClause);
+                    QueryOptions query = new QueryOptions("VisitDate desc");
+                    dataQuery.setQueryOptions(query);
+                    VisitorLog = Backendless.Persistence.of(Visitors.class).find(dataQuery);
+                    if (VisitorLog.getData().size() != VisitorImages.size()) {
+                        int temp = VisitorImages.size();
+                        for (int i = temp; i < VisitorLog.getData().size(); ++i) {
+                            // New entries will always be new people so take from front of Visitor log
+                            Visitors visitor = VisitorLog.getData().get(i - temp);
+                            String src =
+                                    "https://api.backendless.com/"+getString(R.string.app_id)+"/v1/files"+visitor.getImage();
+                            Log.i("Get Image", src);
+                            URL url = new URL(src);
+                            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                            connection.setDoInput(true);
+                            connection.connect();
+                            InputStream input = connection.getInputStream();
+                            Bitmap bitmap = BitmapFactory.decodeStream(input);
+                            VisitorImages.add(i - temp, bitmap);
+                        }
+                        if (mVisitorList != null) {
+                            mActivity.runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    initializeVisitorLogAdapter();
+                                    mVisitorList.deferNotifyDataSetChanged();
+                                }
+                            });
+                        }
+                        //MessageStatus status = Backendless.Messaging.publish(currentUser.getProperty("serial").toString(), "New visitor detected!" );
+                        //Log.i("MessageSent", status.getStatus().toString() + " AND " + status.getErrorMessage());
+                    }
+                }
+
+            } catch (Exception e) {
+                Log.i("Image Load Failure", "Failure: " + e.getMessage());
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        protected void onPostExecute(final Boolean success) {
+            mLogTask = null;
+
+            if (!success || (success && currentUser == null)) {
+                Log.i("LogRefreshFail", "Could not refresh visitor logs.");
+            } else {
+                Log.i("Log refresh loaded", "Visitor log refreshed!");
+            }
+        }
+
+        @Override
+        protected void onCancelled() {
+            mLogTask = null;
+        }
+    }
+
     public class UserLogOutTask extends AsyncTask<Void, Void, Boolean> {
 
         private final String mEmail;
@@ -264,6 +432,7 @@ public class MainActivity extends AppCompatActivity {
 
         UserGetTask(Activity activity) {
             mActivity = activity;
+            VisitorImages = new ArrayList<>();
         }
 
         @Override
@@ -279,8 +448,34 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     currentUser = Backendless.UserService.CurrentUser();
                 }
+                if (currentUser != null) {
+                    String whereClause = "SerialNum = '" + currentUser.getProperty("serial") + "'";
+                    BackendlessDataQuery dataQuery = new BackendlessDataQuery();
+                    dataQuery.setWhereClause(whereClause);
+                    QueryOptions query = new QueryOptions("VisitDate desc");
+                    dataQuery.setQueryOptions(query);
+                    VisitorLog = Backendless.Persistence.of(Visitors.class).find(dataQuery);
+                    for (Visitors visitor : VisitorLog.getData()) {
+                        String src =
+                                "https://api.backendless.com/" + getString(R.string.app_id) + "/v1/files" + visitor.getImage();
+                        Log.i("Get Image", src);
+                        URL url = new URL(src);
+                        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                        connection.setDoInput(true);
+                        connection.connect();
+                        InputStream input = connection.getInputStream();
+                        Bitmap bitmap = BitmapFactory.decodeStream(input);
+                        VisitorImages.add(bitmap);
+                    }
+
+                    Backendless.Messaging.registerDevice("474153288431", currentUser.getProperty("serial").toString());
+                }
+
             } catch (BackendlessException e) {
                 Log.i("User Load Failure", "Failure: " + e.getDetail() + " " + e.getMessage());
+                return false;
+            } catch (Exception e) {
+                Log.i("Image Load Failure", "Failure: " + e.getMessage());
                 return false;
             }
             return true;
@@ -307,14 +502,13 @@ public class MainActivity extends AppCompatActivity {
             mOutTask = null;
         }
     }
+
     /**
      * Fragment that appears in the "content_frame", shows a planet
      */
-    public static class ContentFragment extends Fragment {
+    public class ContentFragment extends Fragment {
         public static final String ARG_MENU_SELECTION = "planet_number";
-
         public ContentFragment() {
-            // Empty constructor required for fragment subclasses
         }
 
         @Override
@@ -322,12 +516,26 @@ public class MainActivity extends AppCompatActivity {
                                  Bundle savedInstanceState) {
             int i = getArguments().getInt(ARG_MENU_SELECTION) - 1;
             String choice_title = getResources().getStringArray(R.array.menu_item_names)[i];
-            View rootView = inflater.inflate(R.layout.fragment_home, container, false);
 
-            int imageId = getResources().getIdentifier(choice_title.toLowerCase(Locale.getDefault()),
-                    "drawable", getActivity().getPackageName());
-            ((ImageView) rootView.findViewById(R.id.frag_image)).setImageResource(imageId);
-            ((TextView) rootView.findViewById(R.id.frag_title)).setText(choice_title);
+            View rootView;
+            if (i == 0) {
+                rootView = inflater.inflate(R.layout.fragment_home, container, false);
+                int imageId = getResources().getIdentifier(choice_title.toLowerCase(Locale.getDefault()),
+                        "drawable", getActivity().getPackageName());
+                ((ImageView) rootView.findViewById(R.id.frag_image)).setImageResource(imageId);
+                ((TextView) rootView.findViewById(R.id.frag_title)).setText(choice_title);
+            } else if (i == 1) {
+                rootView = inflater.inflate(R.layout.fragment_visitors, container, false);
+                mVisitorList = (ListView) rootView.findViewById(R.id.visitors_list);
+                initializeVisitorLogAdapter();
+            } else {
+                rootView = inflater.inflate(R.layout.fragment_home, container, false);
+                int imageId = getResources().getIdentifier(choice_title.toLowerCase(Locale.getDefault()),
+                        "drawable", getActivity().getPackageName());
+                ((ImageView) rootView.findViewById(R.id.frag_image)).setImageResource(imageId);
+                ((TextView) rootView.findViewById(R.id.frag_title)).setText(choice_title);
+            }
+
             getActivity().setTitle(choice_title);
             return rootView;
         }

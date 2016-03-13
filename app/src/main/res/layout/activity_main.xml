@@ -32,7 +32,7 @@
         <FrameLayout
             android:id="@+id/content_main_frame"
             android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+            android:layout_height="match_parent"/>
     </android.support.design.widget.CoordinatorLayout>
     <ListView android:id="@+id/left_drawer"
         android:layout_width="240dp"
