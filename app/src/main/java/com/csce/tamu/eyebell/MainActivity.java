@@ -31,12 +31,12 @@ import com.backendless.BackendlessUser;
 import com.backendless.async.callback.AsyncCallback;
 import com.backendless.exceptions.BackendlessException;
 import com.backendless.exceptions.BackendlessFault;
-import com.backendless.messaging.MessageStatus;
-import com.backendless.messaging.PublishOptions;
+import com.backendless.files.FileInfo;
 import com.backendless.persistence.BackendlessDataQuery;
 import com.backendless.persistence.QueryOptions;
 import com.backendless.persistence.local.UserIdStorageFactory;
 import com.backendless.persistence.local.UserTokenStorageFactory;
+import com.csce.tamu.eyebell.models.UserRelatives;
 import com.csce.tamu.eyebell.models.Visitors;
 
 import java.io.InputStream;
@@ -55,9 +55,12 @@ import java.util.concurrent.TimeUnit;
 public class MainActivity extends AppCompatActivity {
     static private boolean validLogin;
     private ListView mVisitorList;
+    private ListView mRelativeList;
     private ActionBarDrawerToggle mDrawerToggle;
     private BackendlessCollection<Visitors> VisitorLog;
+    private BackendlessCollection<UserRelatives> RelativeLog;
     private List<Bitmap> VisitorImages;
+    private List<List<Bitmap>> RelativeImages;
     private CharSequence mDrawerTitle;
     private BackendlessUser currentUser;
     private String[] mMenuTitles;
@@ -67,16 +70,18 @@ public class MainActivity extends AppCompatActivity {
     private UserLogOutTask mOutTask = null;
     private UserGetTask mUseTask = null;
     private VisitorUpdateTask mLogTask = null;
+    private RelativesUpdateTask mRelTask = null;
     private View headerView;
 
     private void initializeDrawerMenuAdapter() {
         int[] mIcons = new int[]{
                 R.drawable.ic_action_home,
+                R.mipmap.ic_action_visitor_logs,
                 R.drawable.ic_action_visitors,
                 R.drawable.ic_action_logout,
         };
         ArrayList<HashMap<String,String>> mList = new ArrayList<>();
-        for(int i=0;i<3;i++){
+        for(int i=0;i<mMenuTitles.length;i++){
             HashMap<String, String> hm = new HashMap<>();
             hm.put("text1", mMenuTitles[i]);
             hm.put("icon1", Integer.toString(mIcons[i]));
@@ -110,6 +115,32 @@ public class MainActivity extends AppCompatActivity {
         mVisitorList.setAdapter(new SimpleAdapter(this, mList,
                 R.layout.visitor_list_item, from, to));
         mVisitorList.setOnItemClickListener(new VisitorItemClickListener());
+    }
+
+    private void initializeRelativeAdapter() {
+        String namePrompt = getString(R.string.visitor_name_prompt) + " ";
+        String photoPrompt = getString(R.string.saved_photos) + " ";
+        ArrayList<HashMap<String,String>> mList = new ArrayList<>();
+        int size = 0;
+        if (RelativeLog != null) {
+            if (RelativeLog.getData() != null) {
+                size = RelativeLog.getData().size();
+            }
+        }
+        for(int i = 0; i < size; ++i) {
+            UserRelatives relative = RelativeLog.getData().get(i);
+            HashMap<String, String> hm = new HashMap<>();
+            Log.i("RelativeBuilder", "Adding relative: " + relative.getRelativeName()
+                    + " with " + RelativeImages.get(i).size() + " trained photos.");
+            hm.put("visit_text1", namePrompt + relative.getRelativeName());
+            hm.put("visit_text2", photoPrompt + RelativeImages.get(i).size());
+            mList.add(hm);
+        }
+        String from[] = {"visit_text1", "visit_text2"};
+        int to[] = {R.id.visit_text1, R.id.visit_text2};
+        mRelativeList.setAdapter(new SimpleAdapter(this, mList,
+                R.layout.visitor_list_item, from, to));
+        mRelativeList.setOnItemClickListener(new RelativeItemClickListener());
     }
 
     @Override
@@ -147,7 +178,7 @@ public class MainActivity extends AppCompatActivity {
                 invalidateOptionsMenu(); // creates call to onPrepareOptionsMenu()
             }
         };
-
+        loadRelatives();
         Timer timer = new Timer();
 
         timer.scheduleAtFixedRate(new TimerTask() {
@@ -177,6 +208,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private class RelativeItemClickListener implements ListView.OnItemClickListener {
+        @Override
+        public void onItemClick(AdapterView parent, View view, int position, long id) {
+            selectRelative(position);
+        }
+    }
+
     /** Swaps fragments in the main content view */
     public void selectVisitor(final int position) {
         String choice_name = VisitorLog.getData().get(position).getVisitorName();
@@ -201,6 +239,29 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /** Swaps fragments in the main content view */
+    public void selectRelative(final int position) {
+        /*String choice_name = VisitorLog.getData().get(position).getVisitorName();
+        Log.i("VisitorSelection", "User selected visitor: " + choice_name);
+        final Dialog dialog= new Dialog(this);
+        LayoutInflater inflater  = getLayoutInflater();
+        View v = inflater.inflate(R.layout.visitor_view, null);
+        DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm");
+        String formatDate = df.format(VisitorLog.getData().get(position).getVisitDate());
+        ((TextView) v.findViewById(R.id.visitor_name)).append(" " + VisitorLog.getData().get(position).getVisitorName());
+        ((TextView) v.findViewById(R.id.visitor_date)).append(" " + formatDate);
+        ((ImageView) v.findViewById(R.id.visitor_image)).setImageBitmap(VisitorImages.get(position));
+        dialog.setContentView(v);
+        dialog.show();
+        (v.findViewById(R.id.dialog_btn)).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View arg0) {
+                dialog.dismiss();
+                mVisitorList.setItemChecked(position, false);
+            }
+        });*/
+    }
+
+    /** Swaps fragments in the main content view */
     public void selectItem(int position) {
         String choice_title = "Header";
         if (position > 0) {
@@ -214,6 +275,7 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case 1:
             case 2:
+            case 3:
                 // Create a new fragment and specify the planet to show based on position
                 Fragment fragment = new ContentFragment();
                 Bundle args = new Bundle();
@@ -227,7 +289,7 @@ public class MainActivity extends AppCompatActivity {
                         .commit();
                 setTitle(mMenuTitles[position - 1]);
                 break;
-            case 3:
+            case 4:
                 attemptLogout();
                 break;
         }
@@ -311,12 +373,100 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private void loadRelatives() {
+        if (mRelTask != null) {
+            return;
+        }
+        mRelTask = new RelativesUpdateTask(this);
+        mRelTask.execute((Void) null);
+    }
+
     private void loadVisitorLogs() {
         if (mLogTask != null) {
             return;
         }
         mLogTask = new VisitorUpdateTask(this);
         mLogTask.execute((Void) null);
+    }
+
+    public class RelativesUpdateTask extends AsyncTask<Void, Void, Boolean> {
+        private Activity mActivity;
+        private List<List<String>> fileUrls;
+        RelativesUpdateTask(Activity act) {
+            fileUrls = new ArrayList<>();
+            RelativeImages = new ArrayList<>();
+            mActivity = act;
+        }
+
+        @Override
+        protected Boolean doInBackground(Void... params) {
+            if (currentUser != null) {
+                String whereClause = "SerialNum = '" + currentUser.getProperty("serial") + "'";
+                BackendlessDataQuery dataQuery = new BackendlessDataQuery();
+                dataQuery.setWhereClause(whereClause);
+                RelativeLog = Backendless.Persistence.of(UserRelatives.class).find(dataQuery);
+                if (RelativeLog == null || RelativeLog.getData() == null) {
+                    return false;
+                }
+                if (RelativeLog.getData().size() != RelativeImages.size()) {
+                    int temp = RelativeImages.size();
+                    for (int i = temp; i < RelativeLog.getData().size(); ++i) {
+                        final int index = i - temp;
+                        RelativeImages.add(index, new ArrayList<Bitmap>());
+                        fileUrls.add(index, new ArrayList<String>());
+                        // New entries will always be new people so take from front of Visitor log
+                        UserRelatives relative = RelativeLog.getData().get(i - temp);
+                        BackendlessCollection<FileInfo> response = Backendless.Files.listing(relative.getRelativePath(), "*.*", false);
+                        for (FileInfo file : response.getCurrentPage()) {
+                            String src = file.getPublicUrl();
+                            fileUrls.get(index).add(src);
+                        }
+                    }
+                    for (int i = 0; i < fileUrls.size(); ++i) {
+                        for (String url : fileUrls.get(i)) {
+                            try {
+                                URL s = new URL(url);
+                                HttpURLConnection connection = (HttpURLConnection) s.openConnection();
+                                connection.setDoInput(true);
+                                connection.connect();
+                                InputStream input = connection.getInputStream();
+                                Bitmap bitmap = BitmapFactory.decodeStream(input);
+                                RelativeImages.get(i).add(bitmap);
+                                Log.i("Get Relative Image", url);
+                            } catch (Exception e) {
+                                Log.i("RelativeImageFailure", "Failure: " + e.getMessage() + " " + e.getLocalizedMessage() + " " + e.toString());
+                            }
+                        }
+                    }
+                    if (mRelativeList != null) {
+                        mActivity.runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                initializeRelativeAdapter();
+                                mRelativeList.deferNotifyDataSetChanged();
+                            }
+                        });
+                    }
+                }
+            }
+            return true;
+        }
+
+        @Override
+        protected void onPostExecute(final Boolean success) {
+            mRelTask = null;
+
+            if (!success || currentUser == null) {
+                Log.i("RelativeRefreshFail", "Could not refresh visitor logs.");
+            } else {
+                Log.i("UserRelatives loaded", "Visitor log refreshed!");
+            }
+        }
+
+        @Override
+        protected void onCancelled() {
+            mRelTask = null;
+        }
     }
 
     public class VisitorUpdateTask extends AsyncTask<Void, Void, Boolean> {
@@ -376,7 +526,7 @@ public class MainActivity extends AppCompatActivity {
         protected void onPostExecute(final Boolean success) {
             mLogTask = null;
 
-            if (!success || (success && currentUser == null)) {
+            if (!success || currentUser == null) {
                 Log.i("LogRefreshFail", "Could not refresh visitor logs.");
             } else {
                 Log.i("Log refresh loaded", "Visitor log refreshed!");
@@ -528,6 +678,10 @@ public class MainActivity extends AppCompatActivity {
                 rootView = inflater.inflate(R.layout.fragment_visitors, container, false);
                 mVisitorList = (ListView) rootView.findViewById(R.id.visitors_list);
                 initializeVisitorLogAdapter();
+            } else if (i == 2) {
+                rootView = inflater.inflate(R.layout.fragment_relatives, container, false);
+                mRelativeList = (ListView) rootView.findViewById(R.id.relatives_list);
+                initializeRelativeAdapter();
             } else {
                 rootView = inflater.inflate(R.layout.fragment_home, container, false);
                 int imageId = getResources().getIdentifier(choice_title.toLowerCase(Locale.getDefault()),
