@@ -4,8 +4,6 @@ import android.app.Application;
 import android.util.Log;
 
 import com.backendless.Backendless;
-import com.backendless.async.callback.AsyncCallback;
-import com.backendless.exceptions.BackendlessFault;
 
 /**
  * Created by codytaylor on 3/6/16.

@@ -20,6 +20,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.SimpleAdapter;
@@ -55,7 +56,9 @@ import java.util.concurrent.TimeUnit;
 public class MainActivity extends AppCompatActivity {
     static private boolean validLogin;
     private ListView mVisitorList;
+    private List<List<String>> RelativePictureNames;
     private ListView mRelativeList;
+    private ListView mRelativePictureList;
     private ActionBarDrawerToggle mDrawerToggle;
     private BackendlessCollection<Visitors> VisitorLog;
     private BackendlessCollection<UserRelatives> RelativeLog;
@@ -143,6 +146,51 @@ public class MainActivity extends AppCompatActivity {
         mRelativeList.setOnItemClickListener(new RelativeItemClickListener());
     }
 
+    private void initializeRelativeAdapterAndDelete(int abc) {
+        RelativeLog.getData().remove(abc);
+        RelativeImages.remove(abc);
+        RelativePictureNames.remove(abc);
+        String namePrompt = getString(R.string.visitor_name_prompt) + " ";
+        String photoPrompt = getString(R.string.saved_photos) + " ";
+        ArrayList<HashMap<String,String>> mList = new ArrayList<>();
+        int size = 0;
+        if (RelativeLog != null) {
+            if (RelativeLog.getData() != null) {
+                size = RelativeLog.getData().size();
+            }
+        }
+        for(int i = 0; i < size; ++i) {
+            UserRelatives relative = RelativeLog.getData().get(i);
+            HashMap<String, String> hm = new HashMap<>();
+            Log.i("RelativeBuilder", "Adding relative: " + relative.getRelativeName()
+                    + " with " + RelativeImages.get(i).size() + " trained photos.");
+            hm.put("visit_text1", namePrompt + relative.getRelativeName());
+            hm.put("visit_text2", photoPrompt + RelativeImages.get(i).size());
+            mList.add(hm);
+        }
+        String from[] = {"visit_text1", "visit_text2"};
+        int to[] = {R.id.visit_text1, R.id.visit_text2};
+        mRelativeList.setAdapter(new SimpleAdapter(this, mList,
+                R.layout.visitor_list_item, from, to));
+        mRelativeList.setOnItemClickListener(new RelativeItemClickListener());
+    }
+
+    private void initializeRelativePictureAdapter(int i) {
+        String namePrompt = "Image: ";
+        ArrayList<HashMap<String,String>> mList = new ArrayList<>();
+        for(String image : RelativePictureNames.get(i)){
+            HashMap<String, String> hm = new HashMap<>();
+            hm.put("visit_text1", namePrompt + image);
+            hm.put("visit_text2", "");
+            mList.add(hm);
+        }
+        String from[] = {"visit_text1", "visit_text2"};
+        int to[] = {R.id.visit_text1, R.id.visit_text2};
+        mRelativePictureList.setAdapter(new SimpleAdapter(this, mList,
+                R.layout.visitor_list_item, from, to));
+        mRelativePictureList.setOnItemClickListener(new RelativePictureItemListener());
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -215,6 +263,13 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private class RelativePictureItemListener implements ListView.OnItemClickListener {
+        @Override
+        public void onItemClick(AdapterView parent, View view, int position, long id) {
+            selectRelativeImage(position);
+        }
+    }
+
     /** Swaps fragments in the main content view */
     public void selectVisitor(final int position) {
         String choice_name = VisitorLog.getData().get(position).getVisitorName();
@@ -238,8 +293,31 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+
     /** Swaps fragments in the main content view */
     public void selectRelative(final int position) {
+        String choice_title = "Users";
+        Log.i("RelativeSelection", "User selected: " + RelativeLog.getData().get(position).getRelativeName());
+        switch (position) {
+            default:
+                // Create a new fragment and specify the planet to show based on position
+                Fragment fragment = new RelativeFragment();
+                Bundle args = new Bundle();
+                args.putInt(RelativeFragment.ARG_MENU_SELECTION, position);
+                fragment.setArguments(args);
+
+                // Insert the fragment by replacing any existing fragment
+                FragmentManager fragmentManager = getFragmentManager();
+                fragmentManager.beginTransaction()
+                        .replace(R.id.content_main_frame, fragment)
+                        .commit();
+                setTitle(choice_title);
+                break;
+        }
+    }
+
+    /** Swaps fragments in the main content view */
+    public void selectRelativeImage(final int position) {
         /*String choice_name = VisitorLog.getData().get(position).getVisitorName();
         Log.i("VisitorSelection", "User selected visitor: " + choice_name);
         final Dialog dialog= new Dialog(this);
@@ -395,6 +473,7 @@ public class MainActivity extends AppCompatActivity {
         RelativesUpdateTask(Activity act) {
             fileUrls = new ArrayList<>();
             RelativeImages = new ArrayList<>();
+            RelativePictureNames = new ArrayList<>();
             mActivity = act;
         }
 
@@ -413,12 +492,14 @@ public class MainActivity extends AppCompatActivity {
                     for (int i = temp; i < RelativeLog.getData().size(); ++i) {
                         final int index = i - temp;
                         RelativeImages.add(index, new ArrayList<Bitmap>());
+                        RelativePictureNames.add(index, new ArrayList<String>());
                         fileUrls.add(index, new ArrayList<String>());
                         // New entries will always be new people so take from front of Visitor log
                         UserRelatives relative = RelativeLog.getData().get(i - temp);
                         BackendlessCollection<FileInfo> response = Backendless.Files.listing(relative.getRelativePath(), "*.*", false);
                         for (FileInfo file : response.getCurrentPage()) {
                             String src = file.getPublicUrl();
+                            RelativePictureNames.get(index).add(file.getName());
                             fileUrls.get(index).add(src);
                         }
                     }
@@ -690,6 +771,54 @@ public class MainActivity extends AppCompatActivity {
                 ((TextView) rootView.findViewById(R.id.frag_title)).setText(choice_title);
             }
 
+            getActivity().setTitle(choice_title);
+            return rootView;
+        }
+    }
+
+    /**
+     * Fragment that appears in the "content_frame", shows a planet
+     */
+    public class RelativeFragment extends Fragment {
+        public static final String ARG_MENU_SELECTION = "planet_number";
+        public RelativeFragment() {
+        }
+
+        @Override
+        public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                                 Bundle savedInstanceState) {
+            final int i = getArguments().getInt(ARG_MENU_SELECTION);
+            String choice_title = "Users";
+
+            View rootView;
+            rootView = inflater.inflate(R.layout.fragment_select_relative, container, false);
+            mRelativePictureList  = (ListView) rootView.findViewById(R.id.relative_picture_list);
+            ((TextView) rootView.findViewById(R.id.relative_name)).setText(RelativeLog.getData().get(i).getRelativeName());
+            (rootView.findViewById(R.id.back_relative)).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View arg0) {
+                    selectItem(3);
+                }
+            });
+            ((Button)rootView.findViewById(R.id.delete_relative)).setText("Delete " + RelativeLog.getData().get(i).getRelativeName());
+            (rootView.findViewById(R.id.delete_relative)).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View arg0) {
+                    Backendless.Persistence.of(UserRelatives.class).remove(RelativeLog.getData().get(i), new AsyncCallback<Long>() {
+                        public void handleResponse(Long response) {
+                            Log.i("RelativeDeleted", "Successfully deleted relative");
+                            initializeRelativeAdapterAndDelete(i);
+                            selectItem(3);
+                        }
+
+                        public void handleFault(BackendlessFault fault) {
+                            Log.i("RelativeDelete", "Fail: " + fault.getCode() + " Reason: " + fault.getDetail());
+                            selectItem(1);
+                        }
+                    });
+                }
+            });
+            initializeRelativePictureAdapter(i);
             getActivity().setTitle(choice_title);
             return rootView;
         }

@@ -9,6 +9,7 @@ public class UserRelatives {
     private String RelativeName;
     private String SerialNum;
     private String RelativePath;
+    private String Greeting;
 
     public String getObjectId() {
         return objectId;
@@ -40,5 +41,13 @@ public class UserRelatives {
 
     public void setRelativePath(String relativePath) {
         RelativePath = relativePath;
+    }
+
+    public String getGreeting() {
+        return Greeting;
+    }
+
+    public void setGreeting(String greeting) {
+        Greeting = greeting;
     }
 }
