@@ -27,4 +27,5 @@ dependencies {
     compile 'com.android.support:design:22.2.1'
     compile 'com.backendless:backendless:3.0.8.1'
     compile 'de.hdodenhof:circleimageview:1.2.1'
+    compile files('libs/sinch-android-rtc-3.9.3.jar')
 }

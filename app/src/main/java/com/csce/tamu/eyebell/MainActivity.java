@@ -12,7 +12,6 @@ import android.os.Bundle;
 import android.app.Fragment;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
-import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -25,6 +24,7 @@ import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.SimpleAdapter;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.backendless.Backendless;
 import com.backendless.BackendlessCollection;
@@ -39,6 +39,7 @@ import com.backendless.persistence.local.UserIdStorageFactory;
 import com.backendless.persistence.local.UserTokenStorageFactory;
 import com.csce.tamu.eyebell.models.UserRelatives;
 import com.csce.tamu.eyebell.models.Visitors;
+import com.sinch.android.rtc.SinchError;
 
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -53,7 +54,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends BaseActivity implements SinchService.StartFailedListener {
     static private boolean validLogin;
     private ListView mVisitorList;
     private List<List<String>> RelativePictureNames;
@@ -61,6 +62,7 @@ public class MainActivity extends AppCompatActivity {
     private ListView mRelativePictureList;
     private ActionBarDrawerToggle mDrawerToggle;
     private BackendlessCollection<Visitors> VisitorLog;
+    private View headerView;
     private BackendlessCollection<UserRelatives> RelativeLog;
     private List<Bitmap> VisitorImages;
     private List<List<Bitmap>> RelativeImages;
@@ -74,13 +76,14 @@ public class MainActivity extends AppCompatActivity {
     private UserGetTask mUseTask = null;
     private VisitorUpdateTask mLogTask = null;
     private RelativesUpdateTask mRelTask = null;
-    private View headerView;
+    private boolean intercomEnable = false;
 
     private void initializeDrawerMenuAdapter() {
         int[] mIcons = new int[]{
                 R.drawable.ic_action_home,
                 R.mipmap.ic_action_visitor_logs,
                 R.drawable.ic_action_visitors,
+                R.drawable.ic_action_name,
                 R.drawable.ic_action_logout,
         };
         ArrayList<HashMap<String,String>> mList = new ArrayList<>();
@@ -196,18 +199,16 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         LayoutInflater inflater = getLayoutInflater();
-
         headerView = inflater.inflate(R.layout.header_list, null, false);
 
-        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
-        setSupportActionBar(toolbar);
-        loadCurrentUser();
 
         mTitle = mDrawerTitle = getTitle();
         mMenuTitles = getResources().getStringArray(R.array.menu_item_names);
         mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
         mDrawerList = (ListView) findViewById(R.id.left_drawer);
         mDrawerList.addHeaderView(headerView);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
         initializeDrawerMenuAdapter();
 
         mDrawerToggle = new ActionBarDrawerToggle(this, mDrawerLayout,
@@ -226,6 +227,21 @@ public class MainActivity extends AppCompatActivity {
                 invalidateOptionsMenu(); // creates call to onPrepareOptionsMenu()
             }
         };
+
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setHomeButtonEnabled(true);
+    }
+
+    @Override
+    public void onStarted() {
+        intercomEnable = true;
+    }
+
+    @Override
+    protected void onServiceConnected() {
+        getSinchServiceInterface().setStartListener(this);
+
+        loadCurrentUser();
         loadRelatives();
         Timer timer = new Timer();
 
@@ -238,8 +254,16 @@ public class MainActivity extends AppCompatActivity {
         }, TimeUnit.SECONDS.toMillis(30), TimeUnit.SECONDS.toMillis(30));
 
         mDrawerLayout.setDrawerListener(mDrawerToggle);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-        getSupportActionBar().setHomeButtonEnabled(true);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+    }
+
+    @Override
+    public void onStartFailed(SinchError error) {
+        Toast.makeText(this, error.toString(), Toast.LENGTH_LONG).show();
     }
 
     private class DrawerItemClickListener implements ListView.OnItemClickListener {
@@ -352,6 +376,9 @@ public class MainActivity extends AppCompatActivity {
                 // TODO: Do Something Else
                 break;
             case 1:
+                if (!getSinchServiceInterface().isStarted()) {
+                    getSinchServiceInterface().startClient(currentUser.getEmail());
+                }
             case 2:
             case 3:
                 // Create a new fragment and specify the planet to show based on position
@@ -368,6 +395,11 @@ public class MainActivity extends AppCompatActivity {
                 setTitle(mMenuTitles[position - 1]);
                 break;
             case 4:
+                if (intercomEnable) {
+                    startActivity(new Intent(this, PlaceCallActivity.class));
+                }
+                break;
+            case 5:
                 attemptLogout();
                 break;
         }
@@ -381,7 +413,9 @@ public class MainActivity extends AppCompatActivity {
     protected void onPostCreate(Bundle savedInstanceState) {
         super.onPostCreate(savedInstanceState);
         // Sync the toggle state after onRestoreInstanceState has occurred.
-        mDrawerToggle.syncState();
+        if (mDrawerToggle != null) {
+            mDrawerToggle.syncState();
+        }
     }
 
     @Override
@@ -680,6 +714,9 @@ public class MainActivity extends AppCompatActivity {
                     currentUser = Backendless.UserService.CurrentUser();
                 }
                 if (currentUser != null) {
+                   /* if (!getSinchServiceInterface().isStarted()) {
+                        getSinchServiceInterface().startClient(currentUser.getEmail());
+                    }*/
                     String whereClause = "SerialNum = '" + currentUser.getProperty("serial") + "'";
                     BackendlessDataQuery dataQuery = new BackendlessDataQuery();
                     dataQuery.setWhereClause(whereClause);
