@@ -3,15 +3,22 @@ package com.csce.tamu.eyebell;
 import android.app.Activity;
 import android.app.Dialog;
 import android.app.FragmentManager;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.app.Fragment;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.ActionBarDrawerToggle;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -20,6 +27,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.SimpleAdapter;
@@ -32,6 +40,7 @@ import com.backendless.BackendlessUser;
 import com.backendless.async.callback.AsyncCallback;
 import com.backendless.exceptions.BackendlessException;
 import com.backendless.exceptions.BackendlessFault;
+import com.backendless.files.BackendlessFile;
 import com.backendless.files.FileInfo;
 import com.backendless.persistence.BackendlessDataQuery;
 import com.backendless.persistence.QueryOptions;
@@ -41,7 +50,12 @@ import com.csce.tamu.eyebell.models.UserRelatives;
 import com.csce.tamu.eyebell.models.Visitors;
 import com.sinch.android.rtc.SinchError;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.DateFormat;
@@ -50,12 +64,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
 public class MainActivity extends BaseActivity implements SinchService.StartFailedListener {
     static private boolean validLogin;
+    static private int REQUEST_CAMERA = 5678;
+    static private int SELECT_FILE = 9876;
+    private String lastRelPath;
+    private List<Bitmap> relativePicsToAdd;
     private ListView mVisitorList;
     private List<List<String>> RelativePictureNames;
     private ListView mRelativeList;
@@ -199,6 +218,7 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         LayoutInflater inflater = getLayoutInflater();
+        relativePicsToAdd = new ArrayList<>();
         headerView = inflater.inflate(R.layout.header_list, null, false);
 
 
@@ -230,6 +250,120 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
 
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeButtonEnabled(true);
+    }
+    public String getPath(Uri uri, Activity activity) {
+        String[] projection = { MediaStore.MediaColumns.DATA };
+        Cursor cursor = activity
+                .managedQuery(uri, projection, null, null, null);
+        int column_index = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DATA);
+        cursor.moveToFirst();
+        return cursor.getString(column_index);
+    }
+
+    private void selectImage() {
+        final CharSequence[] items = { "Take Photo", "Choose from Library",
+                "Cancel" };
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+        builder.setTitle("Add Photo!");
+        builder.setItems(items, new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int item) {
+                if (items[item].equals("Take Photo")) {
+                    Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                    File f = new File(android.os.Environment
+                            .getExternalStorageDirectory(), "temp.jpg");
+                    intent.putExtra(MediaStore.EXTRA_OUTPUT, Uri.fromFile(f));
+                    startActivityForResult(intent, REQUEST_CAMERA);
+                } else if (items[item].equals("Choose from Library")) {
+                    Intent intent = new Intent(
+                            Intent.ACTION_PICK,
+                            android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                    intent.setType("image/*");
+                    startActivityForResult(
+                            Intent.createChooser(intent, "Select File"),
+                            SELECT_FILE);
+                } else if (items[item].equals("Cancel")) {
+                    dialog.dismiss();
+                }
+            }
+        });
+        builder.show();
+    }
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (resultCode == RESULT_OK) {
+            if (requestCode == REQUEST_CAMERA) {
+                File f = new File(Environment.getExternalStorageDirectory()
+                        .toString());
+                for (File temp : f.listFiles()) {
+                    if (temp.getName().equals("temp.jpg")) {
+                        f = temp;
+                        break;
+                    }
+                }
+                try {
+                    Bitmap bm;
+                    BitmapFactory.Options btmapOptions = new BitmapFactory.Options();
+
+                    bm = BitmapFactory.decodeFile(f.getAbsolutePath(),
+                            btmapOptions);
+
+                    // bm = Bitmap.createScaledBitmap(bm, 70, 70, true);
+                    relativePicsToAdd.add(bm);
+
+                    String path = android.os.Environment
+                            .getExternalStorageDirectory()
+                            + File.separator
+                            + "Phoenix" + File.separator + "default";
+                    f.delete();
+                    OutputStream fOut = null;
+                    File file = new File(path, String.valueOf(System
+                            .currentTimeMillis()) + ".jpg");
+                    try {
+                        fOut = new FileOutputStream(file);
+                        bm.compress(Bitmap.CompressFormat.JPEG, 85, fOut);
+                        fOut.flush();
+                        fOut.close();
+                    } catch (FileNotFoundException e) {
+                        e.printStackTrace();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            } else if (requestCode == SELECT_FILE) {
+                Uri selectedImageUri = data.getData();
+
+                String tempPath = getPath(selectedImageUri, MainActivity.this);
+                Bitmap bm;
+                BitmapFactory.Options btmapOptions = new BitmapFactory.Options();
+                bm = BitmapFactory.decodeFile(tempPath, btmapOptions);
+                relativePicsToAdd.add(bm);
+            }
+            if (relativePicsToAdd.size() > 0) {
+                Random rand = new Random();
+                int salt = rand.nextInt() % 5001;
+                Backendless.Files.Android.upload(relativePicsToAdd.get(0), Bitmap.CompressFormat.PNG, 100, Integer.toString(salt) + "myphoto.png", lastRelPath,
+                        new AsyncCallback<BackendlessFile>() {
+                            @Override
+                            public void handleResponse(final BackendlessFile backendlessFile) {
+                                Log.i("RelImage", "Upload success");
+                            }
+
+                            @Override
+                            public void handleFault(BackendlessFault backendlessFault) {
+                                Log.i("FailedRelImage", "Image not uploaded. " + backendlessFault.getDetail() + " AND " + backendlessFault.getMessage());
+                            }
+                        });
+                relativePicsToAdd.remove(0);
+                loadRelatives();
+            }
+        }
     }
 
     @Override
@@ -338,6 +472,10 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
                 setTitle(choice_title);
                 break;
         }
+    }
+
+    public void addRelative() {
+
     }
 
     /** Swaps fragments in the main content view */
@@ -776,6 +914,7 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
      */
     public class ContentFragment extends Fragment {
         public static final String ARG_MENU_SELECTION = "planet_number";
+        private FloatingActionButton relAdd;
         public ContentFragment() {
         }
 
@@ -799,6 +938,73 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
             } else if (i == 2) {
                 rootView = inflater.inflate(R.layout.fragment_relatives, container, false);
                 mRelativeList = (ListView) rootView.findViewById(R.id.relatives_list);
+                relAdd = (FloatingActionButton) rootView.findViewById(R.id.relative_fab_add);
+                relAdd.setOnClickListener(new View.OnClickListener() {
+                    public void onClick(View v) {
+                        Log.i("AddRelative", "User selected to add relative.");
+                        final Dialog dialog= new Dialog(MainActivity.this);
+                        LayoutInflater inflater  = getLayoutInflater();
+                        View relativeView = inflater.inflate(R.layout.add_relative_view, null);
+                        final EditText greeting_name = ((EditText) relativeView.findViewById(R.id.relative_add_name));
+                        final EditText greeting_text = ((EditText) relativeView.findViewById(R.id.relative_add_greeting));
+                        dialog.setContentView(relativeView);
+                        dialog.show();
+                        (relativeView.findViewById(R.id.relative_add_add)).setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View arg0) {
+                                UserRelatives newRelative = new UserRelatives();
+                                newRelative.setGreeting(greeting_text.getText().toString());
+                                newRelative.setRelativeName(greeting_name.getText().toString());
+                                newRelative.setSerialNum(currentUser.getProperty("serial").toString());
+                                newRelative.setRelativePath("/"+newRelative.getSerialNum()+"/"+newRelative.getRelativeName().toLowerCase());
+                                Backendless.Persistence.save( newRelative, new AsyncCallback<UserRelatives>() {
+                                    public void handleResponse( UserRelatives response ) {
+                                        // new Contact instance has been saved
+                                        Log.i("RelativeSaved", "Success!");
+                                        Bitmap photo = BitmapFactory.decodeResource(getResources(), R.drawable.home);
+                                        final String relPath = response.getRelativePath();
+                                        Backendless.Files.Android.upload(photo, Bitmap.CompressFormat.PNG, 100, "myphoto.png", relPath,
+                                                new AsyncCallback<BackendlessFile>() {
+                                                    @Override
+                                                    public void handleResponse(final BackendlessFile backendlessFile) {
+                                                        Backendless.Files.remove(relPath + "/myphoto.png", new AsyncCallback<Void>() {
+                                                            @Override
+                                                            public void handleResponse(Void response) {
+                                                                loadRelatives();
+                                                            }
+
+                                                            @Override
+                                                            public void handleFault(BackendlessFault fault) {
+                                                                Log.i("FailedDeleting", fault.getMessage() + " AND " + fault.getDetail());
+                                                            }
+                                                        });
+                                                    }
+
+                                                    @Override
+                                                    public void handleFault(BackendlessFault backendlessFault) {
+
+                                                    }
+                                                });
+                                    }
+                                    public void handleFault( BackendlessFault fault )
+                                    {
+                                        // an error has occurred, the error code can be retrieved with fault.getCode()
+                                        Log.i("RelativeFailure", "Could not save " + fault.getDetail());
+                                    }
+                                });
+                                dialog.dismiss();
+                            }
+                        });
+                        (relativeView.findViewById(R.id.relative_add_cancel)).setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View arg0) {
+
+                                dialog.dismiss();
+                            }
+                        });
+
+                    }
+                });
                 initializeRelativeAdapter();
             } else {
                 rootView = inflater.inflate(R.layout.fragment_home, container, false);
@@ -818,6 +1024,7 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
      */
     public class RelativeFragment extends Fragment {
         public static final String ARG_MENU_SELECTION = "planet_number";
+        private FloatingActionButton relPicAdd;
         public RelativeFragment() {
         }
 
@@ -837,7 +1044,14 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
                     selectItem(3);
                 }
             });
+            relPicAdd = (FloatingActionButton) rootView.findViewById(R.id.relative_fab_add_picture);
             ((Button)rootView.findViewById(R.id.delete_relative)).setText("Delete " + RelativeLog.getData().get(i).getRelativeName());
+            relPicAdd.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    lastRelPath = RelativeLog.getData().get(i).getRelativePath();
+                    selectImage();
+                }
+            });
             (rootView.findViewById(R.id.delete_relative)).setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View arg0) {

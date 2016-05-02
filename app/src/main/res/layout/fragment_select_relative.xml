@@ -18,6 +18,7 @@
         android:textColor="#000000"
         android:background="?android:attr/activatedBackgroundIndicator"
         android:minHeight="?android:attr/listPreferredItemHeightSmall"/>
+
     <Button
         android:id="@+id/back_relative"
         android:text="Back to Relatives"
@@ -50,6 +51,14 @@
         android:shadowDy="0"
         android:shadowRadius="5"
         />
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/relative_fab_add_picture"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:clickable="true"
+        android:src="@drawable/fab_background"
+        app:layout_anchorGravity="right"/>
     <ListView android:id="@+id/relative_picture_list"
         android:layout_width="match_parent"
         android:layout_height="match_parent"

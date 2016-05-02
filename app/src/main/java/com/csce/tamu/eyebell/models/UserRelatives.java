@@ -11,6 +11,16 @@ public class UserRelatives {
     private String RelativePath;
     private String Greeting;
 
+    public String getFaceID() {
+        return FaceID;
+    }
+
+    public void setFaceID(String faceID) {
+        FaceID = faceID;
+    }
+
+    private String FaceID;
+
     public String getObjectId() {
         return objectId;
     }

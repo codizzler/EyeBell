@@ -31,6 +31,7 @@
     <string name="title_activity_main">EyeBell</string>
     <string name="title_activity_login">EyeBell Login</string>
     <string name="saved_photos">Photos trained: </string>
+    <string name="greeting_prompt">Greeting: </string>
     <string-array
         name="menu_item_names">
         <item>Home</item>

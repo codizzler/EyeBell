@@ -7,6 +7,14 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_marginTop="?android:attr/actionBarSize">
+    <android.support.design.widget.FloatingActionButton
+        android:id="@+id/relative_fab_add"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:clickable="true"
+        android:src="@drawable/fab_background"
+        app:layout_anchorGravity="bottom|right"/>
     <ListView android:id="@+id/relatives_list"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
