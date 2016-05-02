@@ -251,6 +251,7 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setHomeButtonEnabled(true);
     }
+
     public String getPath(Uri uri, Activity activity) {
         String[] projection = { MediaStore.MediaColumns.DATA };
         Cursor cursor = activity
@@ -290,6 +291,7 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
         });
         builder.show();
     }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);

@@ -6,6 +6,7 @@ import com.sinch.android.rtc.calling.CallEndCause;
 import com.sinch.android.rtc.video.VideoCallListener;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
@@ -51,9 +52,14 @@ public class IncomingCallScreenActivity extends BaseActivity {
         Call call = getSinchServiceInterface().getCall(mCallId);
         if (call != null) {
             call.answer();
-            Intent intent = new Intent(this, CallScreenActivity.class);
-            intent.putExtra(SinchService.CALL_ID, mCallId);
-            startActivity(intent);
+            //Intent intent = new Intent(this, CallScreenActivity.class);
+            //intent.putExtra(SinchService.CALL_ID, mCallId);
+
+            Intent browserIntent = new Intent("android.intent.action.VIEW", Uri.parse("http://192.168.43.210:8080/stream/webrtc"));
+            startActivity(browserIntent);
+
+
+            //startActivity(intent);
         } else {
             finish();
         }
