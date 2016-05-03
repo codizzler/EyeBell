@@ -3,6 +3,7 @@ package com.csce.tamu.eyebell;
 import com.sinch.android.rtc.calling.Call;
 
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -49,6 +50,7 @@ public class PlaceCallActivity extends BaseActivity {
     }
 
     private void callButtonClicked() {
+        /*
         String userName = "jjtorlino@yahoo.com";
 
         Call call = getSinchServiceInterface().callUserVideo(userName);
@@ -57,6 +59,9 @@ public class PlaceCallActivity extends BaseActivity {
         Intent callScreen = new Intent(this, CallScreenActivity.class);
         callScreen.putExtra(SinchService.CALL_ID, callId);
         startActivity(callScreen);
+        */
+        Intent browserIntent = new Intent("android.intent.action.VIEW", Uri.parse("http://192.168.43.210:8080/stream/webrtc"));
+        startActivity(browserIntent);
     }
 
     private OnClickListener buttonClickListener = new OnClickListener() {

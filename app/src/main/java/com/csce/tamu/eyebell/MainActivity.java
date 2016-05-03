@@ -126,12 +126,15 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
         String visitPrompt = getString(R.string.visitor_date_prompt) + " ";
         ArrayList<HashMap<String,String>> mList = new ArrayList<>();
         DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm");
-        for(Visitors visitor : VisitorLog.getData()){
-            String formatDate = df.format(visitor.getVisitDate());
+        for(int i = 0; i < VisitorLog.getData().size(); ++i){
+            Visitors visitor = VisitorLog.getData().get(i);
+            String visitName = Character.toUpperCase(visitor.getVisitorName().charAt(0)) +
+                    visitor.getVisitorName().substring(1);
+            String formatDate = df.format(visitor.getCreated());
             HashMap<String, String> hm = new HashMap<>();
             Log.i("VisitorBuilder", "Adding visitor: " + visitor.getVisitorName()
                     + " " + visitor.getVisitDate());
-            hm.put("visit_text1", namePrompt + visitor.getVisitorName());
+            hm.put("visit_text1", namePrompt + visitName);
             hm.put("visit_text2", visitPrompt + formatDate);
             mList.add(hm);
         }
@@ -438,8 +441,10 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
         LayoutInflater inflater  = getLayoutInflater();
         View v = inflater.inflate(R.layout.visitor_view, null);
         DateFormat df = new SimpleDateFormat("MM/dd/yyyy HH:mm");
-        String formatDate = df.format(VisitorLog.getData().get(position).getVisitDate());
-        ((TextView) v.findViewById(R.id.visitor_name)).append(" " + VisitorLog.getData().get(position).getVisitorName());
+        String formatDate = df.format(VisitorLog.getData().get(position).getCreated());
+        String visitName = Character.toUpperCase(VisitorLog.getData().get(position).getVisitorName().charAt(0)) +
+                VisitorLog.getData().get(position).getVisitorName().substring(1);
+        ((TextView) v.findViewById(R.id.visitor_name)).append(" " + visitName);
         ((TextView) v.findViewById(R.id.visitor_date)).append(" " + formatDate);
         ((ImageView) v.findViewById(R.id.visitor_image)).setImageBitmap(VisitorImages.get(position));
         dialog.setContentView(v);
@@ -737,7 +742,7 @@ public class MainActivity extends BaseActivity implements SinchService.StartFail
                     String whereClause = "SerialNum = '" + currentUser.getProperty("serial") + "'";
                     BackendlessDataQuery dataQuery = new BackendlessDataQuery();
                     dataQuery.setWhereClause(whereClause);
-                    QueryOptions query = new QueryOptions("VisitDate desc");
+                    QueryOptions query = new QueryOptions("created DESC");
                     dataQuery.setQueryOptions(query);
                     VisitorLog = Backendless.Persistence.of(Visitors.class).find(dataQuery);
                     if (VisitorLog.getData().size() != VisitorImages.size()) {

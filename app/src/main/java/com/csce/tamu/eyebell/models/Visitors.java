@@ -12,6 +12,16 @@ public class Visitors {
     private String VisitorName;
     private Date VisitDate;
 
+    public Date getCreated() {
+        return created;
+    }
+
+    public void setCreated(Date created) {
+        this.created = created;
+    }
+
+    private Date created;
+
     public String getObjectId()
     {
         return objectId;
